@@ -243,3 +243,31 @@ DEEPSEEK_API_BASE_URL = 'your url'
 两个智能体相互协作，共同完成 human Input的任务<br>
 
 通过这样的任务分解，可以将人类遇到的一些抽象的问题分解成具体的小问题一步一步解决，即使人类用户不具有相关领域的经验也可以实现复杂的想法
+
+<h2>修改task_prompt,assistant_role_name,user_role_name</h2>
+
+类似的，如果我们修改以上三个变量，`AI user`和`AI assistant`会变成不同领域的角色完成任务，以计算机辅助工程为例,修改`def main()`函数
+
+```python 
+def main(model=model, chat_turn_limit=50) -> None:
+    task_prompt = "为CAE新人提供仿真的专家经验封装决策程序"#设置任务目标
+    role_play_session = RolePlaying(
+        assistant_role_name="Python 程序员",#设置AI助手角色名
+        assistant_agent_kwargs=dict(model=model),
+        user_role_name="CAE专家",#设置用户角色名，在roleplay中，user用于指导AI助手完成任务
+        user_agent_kwargs=dict(model=model),
+        task_prompt=task_prompt,
+        with_task_specify=True,
+        task_specify_agent_kwargs=dict(model=model),
+        output_language='中文'#设置输出语言
+    )
+
+```
+
+会生成不同的结果<br>
+
+![aaa](role_play2.png)
+
+
+
+通过修改不同领域的prompt，可以让智能体扮演不同的角色，从而使得任何领域的新手都可以借助AI Agent 顺利完成任务
