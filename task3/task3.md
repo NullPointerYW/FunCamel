@@ -217,7 +217,7 @@ def __init__(
         response_terminators: Optional[List[ResponseTerminator]] = None,
         scheduling_strategy: str = "round_robin",
         single_iteration: bool = False,
-    ) -> None:
+    ) -> None:image.png 
 ```
 
 每一个worker定义了`system_message`,`model`,`output`,如果需要更加详细可以根据`ChatAgent`类自行添加
@@ -236,3 +236,113 @@ worker_node = SingleAgentWorker(description,worker)
 
 ```
 通过传递参数直接构造的方式构造`SingleAgentWorker`类的`worker_node`实例
+
+<h2>启动workforc</h2>
+
+>准备好工作节点后，就可以创建一个任务，并让workforce来处理，下面是一个简单的任务实例
+
+```python 
+from camel.task import Task
+
+task = Task(
+    content = "规划一个3天的巴黎旅行计划",
+    id = "0", 
+)
+
+```
+
+`Task`类定义了很多属性
+
+```python 
+
+class Task(BaseModel):
+    r"""Task is specific assignment that can be passed to a agent.
+
+    Attributes:
+        content: string content for task.
+        id: An unique string identifier for the task. This should
+        ideally be provided by the provider/model which created the task.
+        state: The state which should be OPEN, RUNNING, DONE or DELETED.
+        type: task type
+        parent: The parent task, None for root task.
+        subtasks: The childrent sub-tasks for the task.
+        result: The answer for the task.
+    """
+
+    content: str
+
+    id: str = ""
+
+    state: TaskState = TaskState.OPEN
+
+    type: Optional[str] = None
+
+    parent: Optional["Task"] = None
+
+    subtasks: List["Task"] = []
+
+    result: Optional[str] = ""
+
+    failure_count: int = 0
+
+    additional_info: Optional[str] = None
+
+```
+
+>接着调用`process_task()`方法即可启动workforce的任务处理流程
+
+```python 
+task = workforce.process_task(task)
+```
+
+```python 
+@check_if_running(False)
+    def process_task(self, task: Task) -> Task:
+        r"""The main entry point for the workforce to process a task. It will
+        start the workforce and all the child nodes under it, process the
+        task provided and return the updated task.
+
+        Args:
+            task (Task): The task to be processed.
+
+        Returns:
+            Task: The updated task.
+        """
+        self.reset()
+        self._task = task
+        task.state = TaskState.FAILED
+        self._pending_tasks.append(task)
+        # The agent tend to be overconfident on the whole task, so we
+        # decompose the task into subtasks first
+        subtasks = self._decompose_task(task)
+        self._pending_tasks.extendleft(reversed(subtasks))
+        self.set_channel(TaskChannel())
+
+        asyncio.run(self.start())
+
+        return task
+
+```
+`process_task`方法是`Workforce`类的主要入口点，用于处理任务，主要由以下步骤完成
+
+1. 重制节点状态
+2. 设置当前任务并将其状态初始化为`FAILED`
+3. 将任务添加到待处理任务列表
+4. 将任务分解为子任务，并将子任务添加到待处理任务列表
+5. 设置任务通道
+6. 启动节点，开始处理任务
+7. 返回更新后的任务
+
+`self._pending_task`定义为`deque()`的双端队列，可以从队列的左右两侧添加元素，假如`subtask`包含以下子任务：
+
+```python
+subtasks = [Task("Subtask 1"), Task("Subtask 2"), Task("Subtask 3")]
+```
+执行`reversed(substask)`后，子任务列表变为
+```python 
+reversed_subtasks = [Task("Subtask 3"), Task("Subtask 2"), Task("Subtask 1")]
+```
+执行`self._pending_tasks.extendleft(reversed_subtasks)`后，有
+```python 
+_pending_tasks = deque([Task("Subtask 3"), Task("Subtask 2"), Task("Subtask 1")])
+```
